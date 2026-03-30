@@ -396,7 +396,16 @@ class Mirror3dCOCOeval(COCOeval):
             IOU_list = []
             for iou in self.params.iouThrs:
                 if len(iou_predNum_noneNum[iou][0]):
-                    IOU_list.append([np.array(iou_scoreList[iou])[:,0].mean(), np.array(iou_scoreList[iou])[:,1].mean(), np.array(iou_scoreList[iou])[:,2].mean()])
+                    if len(iou_scoreList[iou]) > 0:
+                        pred_anchor_scores_by_iou = np.array(iou_scoreList[iou])[:,0]
+                        pred_normal_scores_by_iou = np.array(iou_scoreList[iou])[:,1]
+                        pred_res_scores_by_iou = np.array(iou_scoreList[iou])[:,2]
+                        mean_pred_anchor_score = pred_anchor_scores_by_iou[~np.isnan(pred_anchor_scores_by_iou)].mean()
+                        mean_pred_normal_score = pred_normal_scores_by_iou[~np.isnan(pred_normal_scores_by_iou)].mean()
+                        mean_res_score = pred_res_scores_by_iou[~np.isnan(pred_res_scores_by_iou)].mean()
+                        IOU_list.append([mean_pred_anchor_score, mean_pred_normal_score, mean_res_score])
+                    else:
+                        IOU_list.append([.0, .0, .0])
 
             print("| {:45} | IOU 0.5:0.95 | {:15} {:5f} |".format("mirror_pred_anchor & mirror_GT_normal", score_tag, np.array(IOU_list)[:,0].mean()))
             print("| {:45} | IOU 0.5:0.95 | {:15} {:5f} |".format("mirror_pred_normal & mirror_GT_normal", score_tag, np.array(IOU_list)[:,1].mean()))
@@ -606,8 +615,8 @@ class Mirror3dCOCOeval(COCOeval):
                     tps = np.logical_and(               dtm,  np.logical_not(dtIg) )
                     fps = np.logical_and(np.logical_not(dtm), np.logical_not(dtIg) )
 
-                    tp_sum = np.cumsum(tps, axis=1).astype(dtype=np.float)
-                    fp_sum = np.cumsum(fps, axis=1).astype(dtype=np.float)
+                    tp_sum = np.cumsum(tps, axis=1).astype(dtype=float)
+                    fp_sum = np.cumsum(fps, axis=1).astype(dtype=float)
                     for t, (tp, fp) in enumerate(zip(tp_sum, fp_sum)):
                         tp = np.array(tp)
                         fp = np.array(fp)
@@ -713,8 +722,8 @@ class Mirror3dCOCOeval(COCOeval):
                     tps = np.logical_and(               dtm,  np.logical_not(dtIg) )
                     fps = np.logical_and(np.logical_not(dtm), np.logical_not(dtIg) )
 
-                    tp_sum = np.cumsum(tps, axis=1).astype(dtype=np.float)
-                    fp_sum = np.cumsum(fps, axis=1).astype(dtype=np.float)
+                    tp_sum = np.cumsum(tps, axis=1).astype(dtype=float)
+                    fp_sum = np.cumsum(fps, axis=1).astype(dtype=float)
                     for t, (tp, fp) in enumerate(zip(tp_sum, fp_sum)):
                         tp = np.array(tp)
                         fp = np.array(fp)

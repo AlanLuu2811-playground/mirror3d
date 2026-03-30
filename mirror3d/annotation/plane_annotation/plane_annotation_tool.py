@@ -60,6 +60,7 @@ class PlaneAnnotationTool:
         random.seed(5)
         rand = lambda: random.randint(100, 255)
         bgr_color_list = []
+        color_dir = None
         for i in range(100):
             bgr_color_list.append([rand(), rand(), rand()])
         # Get filename int_mask_output_path, color_mask_output_path dict()
@@ -68,6 +69,7 @@ class PlaneAnnotationTool:
         for item in filename_int_mask_color_mask_list:
             if len(item.strip().split()) == 3:
                 color_name, int_mask_output_path, color_mask_output_path = item.strip().split()
+                color_dir = os.path.split(color_name)[0]
                 color_output_paths[color_name] = [int_mask_output_path, color_mask_output_path]
 
         to_gen_list = [i[coco_filename_tag] for i in read_json(coco_json)["images"]]
@@ -75,18 +77,28 @@ class PlaneAnnotationTool:
 
         coco = COCO(coco_json)
         for index in range(len(coco.imgs)):
-            img_id = index + 1  # coco image id start from 1
+            img_id = index  # coco image id start from 1
             ann_ids = coco.getAnnIds(imgIds=img_id)
             anns = coco.loadAnns(ann_ids)
             img_info = coco.loadImgs(img_id)[0]
-            int_mask_output_path, color_mask_output_path = color_output_paths[img_info[coco_filename_tag]]
+
+            if img_info[coco_filename_tag] not in color_output_paths:
+                if color_dir is not None:
+                    img_fullpath = os.path.join(color_dir, img_info[coco_filename_tag])
+                    int_mask_output_path, color_mask_output_path = color_output_paths[img_fullpath]
+            else:
+                int_mask_output_path, color_mask_output_path = color_output_paths[img_info[coco_filename_tag]]
+
             os.makedirs(os.path.split(int_mask_output_path)[0], exist_ok=True)
             os.makedirs(os.path.split(color_mask_output_path)[0], exist_ok=True)
             int_mask = np.zeros((img_info['height'], img_info['width']))
             color_mask = np.zeros((img_info['height'], img_info['width'], 3))
             for i, ann in enumerate(anns):
-                int_mask = coco.annToMask(ann)
-                int_mask += (int_mask * (i + 1))  # instance id in int_mask start from 1
+                mask = coco.annToMask(ann)
+                bool_mask = mask.astype(bool)
+                mask *= i + 1  # instance id in int_mask start from 1
+                #int_mask += (mask * (i + 1))  # instance id in int_mask start from 1
+                int_mask[np.where(bool_mask)] = mask[np.where(bool_mask)]
                 color_mask[np.where(int_mask != 0)] = bgr_color_list[i]
             cv2.imwrite(int_mask_output_path, int_mask.astype(np.uint16))
             cv2.imwrite(color_mask_output_path, color_mask)
@@ -448,13 +460,14 @@ class PlaneAnnotationTool:
             mask = cv2.imread(mask_img_path, cv2.IMREAD_ANYDEPTH)
             info = read_json(plane_parameter_json_path)
             valid_instance = False
+            raw_depth = cv2.imread(rawD_path, cv2.IMREAD_ANYDEPTH)
             for one_info in info:
                 instance_index = one_info["mask_id"]
                 binary_instance_mask = (mask == instance_index).astype(np.uint8)
                 plane_parameter = one_info["plane"]
                 cv2.imwrite(refD_output_path,
                             refine_depth_with_plane_parameter_mask(plane_parameter, binary_instance_mask,
-                                                                   cv2.imread(rawD_path, cv2.IMREAD_ANYDEPTH), f))
+                                                                   raw_depth, f))
                 print("update depth {}".format(refD_output_path))
 
     def data_clamping(self, input_txt, expand_range=100, clamp_dis=100, border_width=25):
@@ -493,18 +506,22 @@ class PlaneAnnotationTool:
                 mirror_points = get_points_in_mask(f=f, depth_img_path=refD_path, mirror_mask=instance_mask)
                 mirror_pcd = o3d.geometry.PointCloud()
                 mirror_pcd.points = o3d.utility.Vector3dVector(np.stack(mirror_points, axis=0))
-                mirror_bbox = o3d.geometry.OrientedBoundingBox.create_from_points(
-                    o3d.utility.Vector3dVector(np.stack(mirror_points, axis=0)))
+                try:
+                    mirror_bbox = o3d.geometry.OrientedBoundingBox.create_from_points(
+                        o3d.utility.Vector3dVector(np.stack(mirror_points, axis=0)))
 
-                # Get plane parameter
-                plane_parameter = read_plane_json(plane_parameter_json_path)[instance_index]["plane_parameter"]
+                    # Get plane parameter
+                    plane_parameter = read_plane_json(plane_parameter_json_path)[instance_index]["plane_parameter"]
 
-                # Refine hole raw depth
-                os.makedirs(os.path.split(clamped_refD_path)[0], exist_ok=True)
-                cv2.imwrite(clamped_refD_path, clamp_pcd_by_bbox(mirror_bbox=mirror_bbox, depth_img_path=refD_path, f=f,
-                                                                 mirror_border_mask=mirror_border_mask,
-                                                                 plane_parameter=plane_parameter,
-                                                                 expand_range=expand_range, clamp_dis=clamp_dis))
+                    # Refine hole raw depth
+                    os.makedirs(os.path.split(clamped_refD_path)[0], exist_ok=True)
+                    cv2.imwrite(clamped_refD_path, clamp_pcd_by_bbox(mirror_bbox=mirror_bbox, depth_img_path=refD_path, f=f,
+                                                                     mirror_border_mask=mirror_border_mask,
+                                                                     plane_parameter=plane_parameter,
+                                                                     expand_range=expand_range, clamp_dis=clamp_dis))
+                except Exception as e:
+                    print("warning : can not generate mirror bbox, skip clamping for instance {}".format(instance_index))
+
                 print("update depth {}".format(clamped_refD_path))
 
     def generate_pcdMesh_for_vis(self, input_txt):
@@ -546,16 +563,19 @@ class PlaneAnnotationTool:
                 mirror_points = get_points_in_mask(f, depth_img_path, mirror_mask=binary_instance_mask)
                 mirror_pcd = o3d.geometry.PointCloud()
                 mirror_pcd.points = o3d.utility.Vector3dVector(np.stack(mirror_points, axis=0))
-                if np.array(mirror_pcd.voxel_down_sample(voxel_size=500).points).shape[0] < 30:
-                    mirror_bbox =mirror_pcd.voxel_down_sample(voxel_size=100).get_oriented_bounding_box()
-                else:
-                    mirror_bbox =mirror_pcd.voxel_down_sample(voxel_size=500).get_oriented_bounding_box()
-                mirror_plane = get_mirror_init_plane_from_mirrorbbox(plane_parameter, mirror_bbox)
-                o3d.io.write_point_cloud(pcd_save_path, pcd)
-                print("point cloud saved  to :", os.path.abspath(pcd_save_path))
+                try:
+                    if np.array(mirror_pcd.voxel_down_sample(voxel_size=500).points).shape[0] < 30:
+                        mirror_bbox =mirror_pcd.voxel_down_sample(voxel_size=100).get_oriented_bounding_box()
+                    else:
+                        mirror_bbox =mirror_pcd.voxel_down_sample(voxel_size=500).get_oriented_bounding_box()
+                    mirror_plane = get_mirror_init_plane_from_mirrorbbox(plane_parameter, mirror_bbox)
+                    o3d.io.write_point_cloud(pcd_save_path, pcd)
+                    print("point cloud saved  to :", os.path.abspath(pcd_save_path))
 
-                o3d.io.write_triangle_mesh(mesh_save_path, mirror_plane)
-                print("mirror plane (mesh) saved  to :", os.path.abspath(mesh_save_path))
+                    o3d.io.write_triangle_mesh(mesh_save_path, mirror_plane)
+                    print("mirror plane (mesh) saved  to :", os.path.abspath(mesh_save_path))
+                except Exception as e:
+                    print("warning : can not generate mirror bbox, skip mesh generation for instance {}".format(instance_index))
 
         process_list = self.get_list_to_process(read_txt(input_txt))
         for item in process_list:
@@ -686,7 +706,7 @@ class PlaneAnnotationTool:
                         return
                     else:
                         os.remove(one_video_save_path)
-                command = "ffmpeg -f image2 -i " + one_screenshot_output_folder + "/%05d.png " + one_video_save_path
+                command = "ffmpeg -f image2 -i " + one_screenshot_output_folder + "/%05d.png " + "-c:v h264 -pix_fmt yuv420p " + one_video_save_path
                 os.system(command)
                 print("video saved to {}, used time :{}".format(one_video_save_path, time.time() - start_time))
             except:

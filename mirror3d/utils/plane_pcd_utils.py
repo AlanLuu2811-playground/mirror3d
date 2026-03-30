@@ -356,18 +356,18 @@ def resize_plane(plane, ratio):
 def visualize_mask_one_image(color_img_path, mask):
     i = cv2.cvtColor(cv2.imread(color_img_path), cv2.COLOR_BGR2RGB)
     # convert to floating point
-    img = np.array(i, dtype=np.float)
+    img = np.array(i, dtype=float)
     img /= 255.0
     # convert to floating point
     mask = cv2.cvtColor(mask.astype(np.uint16), cv2.COLOR_GRAY2RGB)
     mask[mask > 0] = 255
-    mask = np.array(mask, dtype=np.float)
+    mask = np.array(mask, dtype=float)
     mask /= 255.0
     # set transparency to 25%
     transparency = .25
     mask *= transparency
     # make a green overlay
-    green = np.ones(img.shape, dtype=np.float) * (0, 1, 0)
+    green = np.ones(img.shape, dtype=float) * (0, 1, 0)
     # green over original image
     masked_img = green * mask + img * (1.0 - mask)
 

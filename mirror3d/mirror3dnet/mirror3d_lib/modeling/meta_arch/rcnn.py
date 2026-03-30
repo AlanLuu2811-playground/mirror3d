@@ -32,7 +32,8 @@ class Mirror3d_GeneralizedRCNN(nn.Module):
 
         self.backbone = build_backbone(cfg)
         self.proposal_generator = build_proposal_generator(cfg, self.backbone.output_shape())
-        self.depth_predictor = Depth()
+        #self.depth_predictor = Depth()
+        self.depth_predictor = None
         self.roi_heads = build_roi_heads(cfg, self.backbone.output_shape())
         self.vis_period = cfg.VIS_PERIOD
         self.input_format = cfg.INPUT.FORMAT

@@ -53,16 +53,19 @@ def get_z_from_plane(plane_parameter, x, y):
 
 
 def dot_product(v1, v2):
-    return sum((a * b) for a, b in zip(v1, v2))
+    #return sum((a * b) for a, b in zip(v1, v2))
+    return np.dot(v1, v2)
 
 
 def length(v):
-    return math.sqrt(dot_product(v, v))
+    #return math.sqrt(dot_product(v, v))
+    return np.linalg.norm(v)
 
 
 def angle(v1, v2):
-    return ((math.acos(dot_product(v1, v2) / (length(v1) * length(v2)))) / np.pi) * 180
-
+    #return ((math.acos(dot_product(v1, v2) / (length(v1) * length(v2)))) / np.pi) * 180
+    denominator = np.linalg.norm(v1) * np.linalg.norm(v2)
+    return ((np.arccos(np.dot(v1, v2) / denominator)) / np.pi) * 180
 
 def run_ransac(data, estimate, is_inlier, sample_size, goal_inliers, max_iterations, stop_at_goal=True,
                random_seed=None):

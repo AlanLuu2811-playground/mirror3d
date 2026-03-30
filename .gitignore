@@ -133,3 +133,12 @@ dmypy.json
 checkpoint
 private
 waste
+
+data
+dataset
+output
+annotation
+mirror3d_input
+.vscode
+test*.txt
+RenderOption*.json

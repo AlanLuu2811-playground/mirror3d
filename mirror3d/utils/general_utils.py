@@ -206,7 +206,8 @@ def save_heatmap_no_border(image, save_path=""):
         image : M * N image 
     """
     plt.figure()
-    fig = plt.imshow(image, cmap=plt.get_cmap("magma"))
+    #fig = plt.imshow(image, cmap=plt.get_cmap("magma"))
+    fig = plt.imshow(image, cmap=plt.get_cmap("viridis"))
     plt.axis('off')
     fig.axes.get_xaxis().set_visible(False)
     fig.axes.get_yaxis().set_visible(False)

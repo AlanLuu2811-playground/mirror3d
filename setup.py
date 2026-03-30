@@ -8,9 +8,14 @@ setup(
     url="https://3dlg-hcvc.github.io/mirror3d/",
     description="Code for Mirror3D",
     packages=find_packages(exclude=("docs", "script")),
-    install_requires=["torchvision>=0.4", "fvcore", "matplotlib", \
-        "pycocotools","tabulate","torch","colorlog","dill","easydict", \
-        "efficientnet_pytorch","numpy","Pillow","PyYAML","scipy","six", \
-        "tensorboardX","torchvision","tqdm","opencv-python","h5py", \
-        "scikit-image","sympy","beautifulsoup4","open3d==0.12.0"],
+    install_requires=[
+        #"torchvision>=0.4", \
+        #"torch" \
+        "fvcore", "matplotlib", \
+        "pycocotools","tabulate","colorlog","dill","easydict", \
+        "numpy","Pillow","PyYAML", \
+        "scipy", \
+        "six", \
+        "tqdm","opencv-python","h5py", \
+        "sympy","beautifulsoup4","open3d==0.12.0"],
 )
