@@ -645,30 +645,40 @@ class RefineDepth:
                     np_depth[y, x] = I[2]
         return np_depth
 
-    def refine_depth_by_mirror_border(self, instance_mask, plane_normal, np_depth):
+    def refine_depth_by_mirror_border(self, instance_mask, plane_normal, np_depth, reduce_half=False):
         # plane : ax + by + cd + d = 0
-        instance_mask = cv2.resize(instance_mask.astype("uint8"), (self.width, self.height), 0, 0, cv2.INTER_NEAREST)
+        assert instance_mask.shape == (self.height, self.width)
+        if reduce_half:
+            width = self.width // 2
+            height = self.height // 2
+            focal_len = self.focal_len // 2
+            border_width = self.border_width // 2
+        else:
+            width = self.width
+            height = self.height
+            focal_len = self.focal_len
+            border_width = self.border_width
+        instance_mask = cv2.resize(instance_mask.astype("uint8"), (width, height), 0, 0, cv2.INTER_NEAREST)
         instance_mask = instance_mask.astype(bool)
-        np_depth = cv2.resize(np_depth, (self.width, self.height), 0, 0, cv2.INTER_NEAREST)
-        self.height, self.width = instance_mask.shape
+        rf_depth = cv2.resize(np_depth, (width, height), 0, 0, cv2.INTER_NEAREST)
         a, b, c = plane_normal
         new_mask = cv2.dilate(np.array(instance_mask).astype(np.uint8),
-                              cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (self.border_width, self.border_width)))
+                              cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (border_width, border_width)))
         mirror_border_mask = new_mask - instance_mask
-        offset = (np_depth * mirror_border_mask).sum() / mirror_border_mask.sum()
+        offset = (rf_depth * mirror_border_mask).sum() / mirror_border_mask.sum()
         py = np.where(instance_mask)[0].mean()
         px = np.where(instance_mask)[1].mean()
-        x0 = (px - self.width / 2) * (offset / self.focal_len)
-        y0 = (py - self.height / 2) * (offset / self.focal_len)
+        x0 = (px - width / 2) * (offset / focal_len)
+        y0 = (py - height / 2) * (offset / focal_len)
         d = -(a * x0 + b * y0 + c * offset)
-        for y in range(self.height):
-            for x in range(self.width):
+        for y in range(height):
+            for x in range(width):
                 if instance_mask[y][x]:
                     n = np.array([a, b, c])
                     # plane function : ax + by + cz + d = 0 ---> x = 0 , y = 0 , c = -d/c
                     V0 = np.array([0, 0, -d / c])
                     P0 = np.array([0, 0, 0])
-                    P1 = np.array([(x - self.width / 2), (y - self.height / 2), self.focal_len])
+                    P1 = np.array([(x - width / 2), (y - height / 2), focal_len])
 
                     j = P0 - V0
                     u = P1 - P0
@@ -677,8 +687,13 @@ class RefineDepth:
                     sI = N / D
                     I = P0 + sI * u
 
-                    np_depth[y, x] = I[2]
-        return np_depth
+                    rf_depth[y, x] = I[2]
+        if reduce_half:
+            rf_depth = cv2.resize(rf_depth, (self.width, self.height), 0, 0, cv2.INTER_NEAREST)
+            instance_mask = cv2.resize(instance_mask.astype("uint8"), (self.width, self.height), 0, 0, cv2.INTER_NEAREST)
+            instance_mask = instance_mask.astype(bool)
+            rf_depth[~instance_mask] = np_depth[~instance_mask]
+        return rf_depth
 
 
 # ---------------------------------------------------------------------------- #
